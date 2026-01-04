@@ -1,4 +1,4 @@
-# 🌾 Farmer AI Assistant (H2H Backend)
+# 🌾 Farmer AI Assistant
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-00a393?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.30+-FF4B4B?style=flat&logo=streamlit)](https://streamlit.io/)
@@ -966,7 +966,7 @@ history = chat_history[-3:]  # Only last 3 exchanges
 curl -X POST "http://localhost:8000/query" \
   -H "Content-Type: application/json" \
   -d '{
-    "message": "What are the symptoms of citrus canker?",
+    "message": "My citrus leaves are showing yellow blotchy patches. What could this be?",
     "chat_history": []
   }'
 ```
@@ -976,8 +976,8 @@ curl -X POST "http://localhost:8000/query" \
 {
   "success": true,
   "intent": "disease",
-  "answer": "Citrus canker shows several distinct symptoms that can help you identify it early. The main signs include raised, corky lesions on leaves, stems, and fruit. These lesions typically have a water-soaked margin and a yellow halo around them. The disease causes premature leaf drop, twig dieback, and can severely affect fruit quality, making them unmarketable.\n\nThe infection spreads rapidly during warm, humid weather, especially with wind-driven rain. Early detection is crucial for effective management.\n\nIf you'd like to know more about treatment options or prevention measures for citrus canker, I'm here to help!",
-  "sources": "[1] Page 5 | [2] Page 7 | [3] Page 9 | [4] Page 12"
+  "answer": "That doesn't sound good. Yellow blotchy patches on citrus leaves can be a sign of a few different things, but one possibility is a disease called Huanglongbing, or citrus greening. It's a pretty common issue, and it can cause those irregular yellow patches you're seeing. Another possibility could be a nutrient deficiency, but the fact that the patches are irregular and not symmetrical makes me think it might be Huanglongbing.\n\nDon't worry, we can work through this together. If you need help figuring out the best course of action to take care of your trees, I'm here to assist!",
+  "sources": "[1] Page 3 | [2] Page 2 | [3] Page 28 | [4] Page 13"
 }
 ```
 
@@ -990,7 +990,7 @@ curl -X POST "http://localhost:8000/query" \
 curl -X POST "http://localhost:8000/query" \
   -H "Content-Type: application/json" \
   -d '{
-    "message": "What is PM-KISAN scheme and am I eligible?",
+    "message": "Are there any subsidies for setting up drip irrigation in my citrus farm?",
     "chat_history": []
   }'
 ```
@@ -1000,8 +1000,8 @@ curl -X POST "http://localhost:8000/query" \
 {
   "success": true,
   "intent": "scheme",
-  "answer": "PM-KISAN (Pradhan Mantri Kisan Samman Nidhi) is a wonderful central government scheme that provides direct income support to farmers. Under this scheme, eligible farmers receive ₹6,000 per year in three equal installments of ₹2,000 each, directly transferred to their bank accounts.\n\nTo be eligible, you need to be a farmer family owning cultivable land. The scheme covers all landholding farmers, with some exceptions for institutional landholders, government employees, and income tax payers. Both small and marginal farmers, as well as larger landholders, can benefit from this scheme.\n\nThe application process is straightforward - you can register through your local agriculture office or online through the PM-KISAN portal. You'll need your Aadhaar card, bank account details, and land ownership documents.\n\nWould you like to know more about the application process or other agricultural schemes available to you?",
-  "sources": "[1] Page 3 | [2] Page 8 | [3] Page 15 | [4] Page 22"
+  "answer": "\nfits Rs. 1,00,000 \napprox\nper\nunit\n\n\n\nYou: Hi, so you're interested in our irrigation subsidy program. That's a fantastic decision, as it can significantly help you reduce your water consumption and lower your costs. Before we proceed, I just want to confirm a few details. Can you please tell me a bit about your farm - what's the size of your land, and what category do you fall under - are you a small or marginal farmer, or do you belong to the general category?",
+  "sources": "[1] Page 12 | [2] Page 11 | [3] Page 47 | [4] Page 12"
 }
 ```
 
@@ -1469,56 +1469,4 @@ services:
 - In-memory cache → Redis (distributed caching)
 - Groq → Self-hosted LLM (cost optimization at scale)
 
----
 
-## 📄 License
-
-This project is licensed under the MIT License.
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
----
-
-## 📞 Support
-
-For issues and questions:
-- **GitHub Issues**: [Create an issue](<repository-url>/issues)
-- **Email**: support@example.com
-- **Documentation**: [Full Docs](<docs-url>)
-
----
-
-## 🙏 Acknowledgments
-
-- **Groq** for providing fast LLM inference
-- **LangChain** for the RAG framework
-- **HuggingFace** for open-source embeddings
-- **ChromaDB** for vector storage solution
-- Agricultural extension departments for knowledge base documents
-
----
-
-## 📊 Project Statistics
-
-- **Lines of Code**: ~800
-- **API Endpoints**: 3
-- **Response Time**: <2s average
-- **Accuracy**: ~89% intent classification
-- **Uptime**: 99.5% (production)
-- **Active Users**: Growing
-
----
-
-**Built with ❤️ for farmers by the H2H Team**
-
-*Last Updated: January 4, 2026*
