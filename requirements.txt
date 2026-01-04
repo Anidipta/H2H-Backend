@@ -1,6 +1,5 @@
 fastapi 
 uvicorn 
-guvicorn 
 streamlit 
 langchain 
 langchain-community 
