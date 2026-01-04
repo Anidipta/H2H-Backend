@@ -23,7 +23,7 @@ app.add_middleware(
 DISEASE_COLLECTION = "citrus_diseases"
 SCHEME_COLLECTION = "government_schemes"
 PERSIST_DIRECTORY = "./chroma_db"
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
 vectorstores_cache = {}
 llm_cache = None
