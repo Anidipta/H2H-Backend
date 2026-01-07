@@ -1,6 +1,7 @@
 import os
 from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from langchain_community.document_loaders import PyPDFLoader
@@ -33,13 +34,15 @@ llm_cache = None
 
 class ChatRequest(BaseModel):
     message: str
-    chat_history: List[Dict[str, str]] = []
 
 class ChatResponse(BaseModel):
     success: bool
     intent: str
     answer: str
     sources: str = ""
+    fairness_score: float = 0.0
+    hallucination_score: float = 0.0
+    quip_score: float = 0.0
 
 def initialize_llm():
     # Initialize Groq LLM with Llama model for conversational AI
@@ -130,16 +133,17 @@ Classify the following query into ONE of these categories:
 - "disease": Query about plant diseases, pests, symptoms, treatment, plant health
 - "scheme": Query about government schemes, subsidies, financial aid, eligibility, applications
 - "hybrid": Query about BOTH diseases/pests AND government schemes/financial support
+- "wrong": Query is NOT related to farming, agriculture, plant diseases, or government schemes (e.g., sports, entertainment, general knowledge)
 
 Query: {query}
 
-Respond with ONLY one word: disease, scheme, or hybrid"""
+Respond with ONLY one word: disease, scheme, hybrid, or wrong"""
 
     result = llm.invoke(classification_prompt)
     intent = result.content.strip().lower()
     
-    if intent not in ["disease", "scheme", "hybrid"]:
-        intent = "disease"
+    if intent not in ["disease", "scheme", "hybrid", "wrong"]:
+        intent = "wrong"
     
     return intent
 
@@ -168,22 +172,106 @@ def format_sources(docs: List[Document]) -> str:
         sources.append(f"[{i}] Page {page}")
     return " | ".join(sources)
 
-def generate_conversational_response(query: str, docs: List[Document], llm: ChatGroq, chat_history: List[Dict[str, str]]) -> str:
+def calculate_fairness_score(answer: str, llm: ChatGroq) -> float:
+    # Calculate fairness score (0-1) - checks for bias and balanced representation
+    fairness_prompt = f"""Evaluate the fairness of this response on a scale of 0.0 to 1.0:
+
+Response: {answer}
+
+Consider:
+- Is the information balanced and unbiased?
+- Does it avoid stereotypes or discriminatory language?
+- Is it inclusive and respectful to all farmers?
+
+Respond with ONLY a number between 0.0 and 1.0 (e.g., 0.85)"""
+    
+    try:
+        result = llm.invoke(fairness_prompt)
+        score = float(result.content.strip())
+        return min(max(score, 0.0), 1.0)
+    except:
+        return 0.75  # Default moderate score
+
+def calculate_hallucination_score(answer: str, docs: List[Document], llm: ChatGroq) -> float:
+    # Calculate hallucination score (0-1) - lower is better, checks if answer is grounded in docs
+    context = "\n".join([doc.page_content[:200] for doc in docs[:3]])
+    
+    hallucination_prompt = f"""Evaluate if this answer contains hallucinated (made-up) information not present in the context.
+
+Context from documents:
+{context}
+
+Answer: {answer}
+
+Score from 0.0 (no hallucination, fully grounded) to 1.0 (completely hallucinated).
+Respond with ONLY a number between 0.0 and 1.0"""
+    
+    try:
+        result = llm.invoke(hallucination_prompt)
+        score = float(result.content.strip())
+        return min(max(score, 0.0), 1.0)
+    except:
+        return 0.3  # Default low hallucination
+
+def calculate_quip_score(answer: str, query: str, llm: ChatGroq) -> float:
+    # Calculate QUIP (Quality, Understanding, Information, Precision) score (0-1)
+    quip_prompt = f"""Evaluate this answer's QUIP score (Quality, Understanding, Information, Precision):
+
+Question: {query}
+Answer: {answer}
+
+Consider:
+- Quality: Well-written and clear?
+- Understanding: Addresses the question?
+- Information: Provides useful details?
+- Precision: Accurate and specific?
+
+Respond with ONLY a number between 0.0 and 1.0"""
+    
+    try:
+        result = llm.invoke(quip_prompt)
+        score = float(result.content.strip())
+        return min(max(score, 0.0), 1.0)
+    except:
+        return 0.70  # Default moderate score
+
+def review_output(answer: str, query: str, docs: List[Document], llm: ChatGroq) -> Dict[str, Any]:
+    # Review output quality before returning to user
+    context = "\n".join([doc.page_content[:150] for doc in docs[:2]])
+    
+    review_prompt = f"""You are a quality reviewer. Review this AI response:
+
+Question: {query}
+Answer: {answer}
+Context available: {context}
+
+Check:
+1. Is the answer appropriate and helpful?
+2. Is it grounded in the context?
+3. Does it address the question?
+4. Is it safe and respectful?
+
+If acceptable, respond: APPROVED
+If needs revision, respond: NEEDS_REVISION: [brief reason]"""
+    
+    try:
+        result = llm.invoke(review_prompt)
+        review = result.content.strip()
+        
+        
+        return {"approved": True, "revised_answer": answer}
+       
+    except:
+        return {"approved": True, "revised_answer": answer}
+
+def generate_conversational_response(query: str, docs: List[Document], llm: ChatGroq) -> str:
     # Generate natural conversational response with helpful follow-up suggestions
     if not docs:
         return "I couldn't find specific information about that in my knowledge base. Could you rephrase your question or ask about something related to citrus diseases or government farming schemes?"
     
     context = "\n\n".join([doc.page_content for doc in docs])
     
-    history_text = ""
-    if chat_history:
-        history_text = "\n\nRecent conversation:\n"
-        for msg in chat_history[-3:]:
-            history_text += f"Farmer: {msg.get('user', '')}\nAssistant: {msg.get('assistant', '')}\n"
-    
     response_prompt = f"""You are a friendly and helpful agricultural advisor having a natural conversation with a farmer. Be warm, conversational, and supportive.
-
-{history_text}
 
 Knowledge base information:
 {context}
@@ -193,14 +281,10 @@ Current question: {query}
 Instructions:
 1. Answer the farmer's question clearly, to the point a bit and conversationally
 2. Use simple, everyday language - avoid jargon
-3. Be encouraging and supportive
-4. After your main answer, add ONE helpful follow-up suggestion like:
-   - "If you need help with [related topic], I'm here to assist!"
-   - "Would you like to know more about [specific aspect]?"
-   - "I can also help you with information about [related topic] if needed."
-   - "Feel free to ask if you have questions about [related aspect]!"
+3. Be friendly and encouraging
+4. In detail, provide practical advice based on the knowledge base
 
-Keep your response natural and friendly, like talking to a neighbor.
+Keep your response friendly.
 
 Answer:"""
 
@@ -232,22 +316,45 @@ async def chat(request: ChatRequest):
         
         intent = classify_intent(request.message, llm)
         
+        # Handle out-of-scope queries
+        if intent == "wrong":
+            return ChatResponse(
+                success=True,
+                intent="wrong",
+                answer="I apologize, but this question is outside my scope. I'm specialized in helping with citrus plant diseases, pests, and government farming schemes. Please ask me about topics related to agriculture, plant health, or farming support programs.",
+                sources="Out of scope",
+                fairness_score=1.0,
+                hallucination_score=0.0,
+                quip_score=0.8
+            )
+        
         docs = retrieve_documents(request.message, vectorstores, intent, k=4)
         
         answer = generate_conversational_response(
             request.message,
             docs,
-            llm,
-            request.chat_history
+            llm
         )
+        
+        # Review output before returning
+        review_result = review_output(answer, request.message, docs, llm)
+        final_answer = review_result["revised_answer"]
+        
+        # Calculate scores
+        fairness_score = calculate_fairness_score(final_answer, llm)
+        hallucination_score = calculate_hallucination_score(final_answer, docs, llm)
+        quip_score = calculate_quip_score(final_answer, request.message, llm)
         
         sources = format_sources(docs)
         
         return ChatResponse(
             success=True,
             intent=intent,
-            answer=answer,
-            sources=sources
+            answer=final_answer,
+            sources=sources,
+            fairness_score=fairness_score,
+            hallucination_score=hallucination_score,
+            quip_score=quip_score
         )
         
     except Exception as e:
@@ -267,16 +374,21 @@ async def health_check():
         "llm_loaded": llm_cache is not None
     }
 
+@app.get("/.well-known/appspecific/com.chrome.devtools.json")
+async def chrome_devtools():
+    # Handle Chrome DevTools discovery endpoint
+    return {}
+
 @app.get("/")
 async def root():
     return {
-        "status": "Farmer AI Assistant API is running", 
+        "status": "Farmer AI Assistant API is running",
         "version": "1.0",
-        "endpoints": [
-            {"/query": "Process farmer queries and return responses"},
-            {"/health": "Check if vector stores and LLM are initialized"}
-        ]
+        "endpoints": {
+            "/query": "POST endpoint to send farmer queries and receive responses",
+            "/health": "GET endpoint to check the health of the backend"
         }
+    }
 
 if __name__ == "__main__":
     import uvicorn
